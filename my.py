@@ -40,38 +40,48 @@ def process_group_choice(message):
 
     file_info = bot.get_file(data.file_id)
 
-    # Загружаем содержимое файла
-    file_content = bot.download_file(file_info.file_path)
-    data.file_content = file_content
+    try:
+        # Загружаем содержимое файла
+        file_content = bot.download_file(file_info.file_path)
+        data.file_content = file_content
 
-    # читает файл
-    df = pd.read_excel(io.BytesIO(file_content))
+        # читает файл
+        df = pd.read_excel(io.BytesIO(file_content))
 
-    # Фильтруем данные по группе
-    group_data = df[df['Группа'] == group]
+        # Проверяем наличие необходимых столбцов
+        required_columns = ['Группа', 'Личный номер студента', 'Уровень контроля', 'Год']
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f"Отсутствует столбец '{col}' в файле. Файл не валидный.")
 
-    total_grades = len(group_data)
-    student_ids = set(group_data['Личный номер студента'])
-    control_types = set(group_data['Уровень контроля'])
-    academic_years = set(group_data['Год'])
+        # Фильтруем данные по группе
+        group_data = df[df['Группа'] == group]
 
-    report_text = (
-        f"Анализ оценок для группы {group}:\n"
-        f"Количество оценок в группе: {total_grades}\n"
-        f"Личные номера студентов в группе: {', '.join(map(str, student_ids))}\n"
-        f"Виды контроля: {', '.join(map(str, control_types))}\n"
-        f"Данные представлены по следующим учебным годам: {', '.join(map(str, academic_years))}\n"
-    )
+        total_grades = len(group_data)
+        student_ids = set(group_data['Личный номер студента'])
+        control_types = set(group_data['Уровень контроля'])
+        academic_years = set(group_data['Год'])
 
-    
+        report_text = (
+            f"Анализ оценок для группы {group}:\n"
+            f"Количество оценок в группе: {total_grades}\n"
+            f"Личные номера студентов в группе: {', '.join(map(str, student_ids))}\n"
+            f"Виды контроля: {', '.join(map(str, control_types))}\n"
+            f"Данные представлены по следующим учебным годам: {', '.join(map(str, academic_years))}\n"
+        )
 
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    back_button = KeyboardButton("Назад")
-    markup.add(back_button)
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        back_button = KeyboardButton("Назад")
+        markup.add(back_button)
 
-    bot.send_message(message.chat.id, report_text, reply_markup=markup)
+        bot.send_message(message.chat.id, report_text, reply_markup=markup)
+        bot.register_next_step_handler(message, handle_back_button)
 
-    bot.register_next_step_handler(message, handle_back_button)
+    except Exception as e:
+        # Обработка ошибок
+        error_message = f"Ошибка: {str(e)}"
+        bot.send_message(message.chat.id, error_message)
+        bot.send_message(message.chat.id, "Пожалуйста, начните снова, отправив команду /start.")
 
 def handle_back_button(message):
     if message.text.lower() == "назад":
